@@ -7,10 +7,6 @@ Compare ping results of hosts before and after an infrastructure upgrade.
 
 Ensure you have Python installed on your system. This tool has been tested with Python 3.8 and above.
 
-To install required dependencies, run the following command in your terminal:
-
-```pip install -r requirements.txt```
-
 ## Usage
 projectPing can be used with the following options:
 
