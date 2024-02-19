@@ -1,7 +1,7 @@
 # projectPing
 Compare ping results of hosts before and after an infrastructure upgrade.
 
-`projectPing` is a Python tool designed to ping a list of hosts to check their availability. It can accept input in various formats, including individual IP addresses, CIDR notation for subnets, or ranges of IP addresses, and can compare the current ping results against previous results to identify changes in host availability.
+**projectPing** is a Python tool designed to ping a list of hosts to check their availability. It can accept input in various formats, including individual IP addresses, CIDR notation for subnets, or ranges of IP addresses, and can compare the current ping results against previous results to identify changes in host availability.
 
 ## Installation
 
