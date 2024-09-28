@@ -1,41 +1,54 @@
-import subprocess
 import ipaddress
 import datetime
 import argparse
 from tqdm import tqdm
 import concurrent.futures
+from pythonping import ping as pythonping
 
 # Set retries and timeout values directly in the script
 RETRIES = 1
 TIMEOUT = 1000  # Timeout in milliseconds
 
 def ping(host):
-    command = ['ping', '-n', '1', '-w', str(TIMEOUT), host]
     for _ in range(RETRIES):
         try:
-            subprocess.check_output(command, stderr=subprocess.STDOUT, universal_newlines=True)
-            return True, host
-        except subprocess.CalledProcessError:
-            continue
+            response = pythonping(host, count=1, timeout=TIMEOUT / 1000)
+            if response.success():
+                return True, host
+        except Exception:
+            pass
     return False, host
 
 def process_host(input_host):
+    ip_list = []
     try:
-        network = ipaddress.ip_network(input_host, strict=False)
-        return [str(ip) for ip in network.hosts()]
-    except ValueError:
-        if '-' in input_host:
-            start_ip, end_ip = input_host.split('-')
-            ip_range = range(int(ipaddress.IPv4Address(start_ip.strip())), int(ipaddress.IPv4Address(end_ip.strip())) + 1)
-            return [str(ipaddress.IPv4Address(ip)) for ip in ip_range]
+        # Check if it's a CIDR notation
+        if '/' in input_host:
+            network = ipaddress.ip_network(input_host.strip(), strict=False)
+            ip_list.extend([str(ip) for ip in network.hosts()])
+        elif '-' in input_host:
+            # Handle IP range
+            start_ip_str, end_ip_str = input_host.split('-')
+            start_ip = ipaddress.IPv4Address(start_ip_str.strip())
+            end_ip = ipaddress.IPv4Address(end_ip_str.strip())
+            if start_ip > end_ip:
+                print(f"Invalid IP range: '{input_host}'. Start IP is greater than end IP. Skipping.")
+            else:
+                ip_range = range(int(start_ip), int(end_ip) + 1)
+                ip_list.extend([str(ipaddress.IPv4Address(ip)) for ip in ip_range])
         else:
-            return [input_host.strip()]
+            # Handle single IP
+            ipaddress.IPv4Address(input_host.strip())
+            ip_list.append(input_host.strip())
+    except ValueError as ve:
+        print(f"Invalid IP address or range '{input_host}': {ve}. Skipping.")
+    return ip_list
 
 def read_hosts_from_file(filename):
     hosts = []
     try:
         with open(filename, 'r') as file:
-            hosts = [line.split(',')[0] for line in file]
+            hosts = [line.split(',')[0].strip() for line in file]
     except FileNotFoundError:
         print(f"File '{filename}' not found.")
     except IOError as e:
@@ -45,7 +58,9 @@ def read_hosts_from_file(filename):
 def compare_and_report_changes(current_results, comparison_file):
     try:
         with open(comparison_file, 'r') as file:
-            previous_results = {line.split(',')[0]: line.strip().endswith('True') for line in file.readlines()}
+            previous_results = {
+                line.split(',')[0]: line.strip().endswith('True') for line in file.readlines()
+            }
         
         changes_detected = False
         for ip, is_pingable in current_results.items():
@@ -65,8 +80,13 @@ def compare_and_report_changes(current_results, comparison_file):
 def write_results_to_file(results):
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
     filename = f"ping_results_{timestamp}.txt"
+    def sort_key(item):
+        try:
+            return ipaddress.ip_address(item[0])
+        except ValueError:
+            return float('inf')  # Invalid IPs are sorted last
     with open(filename, 'w') as file:
-        for ip, success in sorted(results.items(), key=lambda item: ipaddress.ip_address(item[0])):
+        for ip, success in sorted(results.items(), key=sort_key):
             file.write(f"{ip},{success}\n")
     print(f"Results written to {filename}")
 
@@ -78,11 +98,14 @@ def main(ips=None, comparison_file=None, max_workers=64):
     if comparison_file and not ips:
         hosts = read_hosts_from_file(comparison_file)
     elif ips:
-        for ip in ips.split(','):
-            hosts.extend(process_host(ip.strip()))
+        for ip_input in ips.split(','):
+            ip_input = ip_input.strip()
+            ip_list = process_host(ip_input)
+            # Removed redundant message
+            hosts.extend(ip_list)
     
     if not hosts:
-        print("No IPs specified. Exiting.")
+        print("No valid IPs specified. Exiting.")
         return
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

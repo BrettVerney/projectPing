@@ -7,6 +7,10 @@ Compare ping results of hosts before and after an infrastructure upgrade.
 
 Ensure you have Python installed on your system. This tool has been tested with Python 3.8 and above.
 
+Install the required dependencies using pip:
+
+```pip install pythonping tqdm```
+
 ## Usage
 projectPing can be used with the following options:
 
